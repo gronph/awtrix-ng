@@ -1,4 +1,7 @@
 #include "platform/tc002/daemon/McuService.h"
+
+#include <cstdio>
+#include <cstdlib>
 #include "platform/posix/Text.h"
 
 #include <asm/ioctls.h>
@@ -50,6 +53,7 @@ bool McuService::start(int64_t nowMs) {
   prepareRetryAt_ = -1;
   prepareStatus_.clear();
   openUart(nowMs);
+  ledGainAt_ = nowMs;
   return true;
 }
 
@@ -116,6 +120,7 @@ bool McuService::openUart(int64_t nowMs) {
 }
 
 void McuService::closeUart(int64_t nowMs, const char* reason) {
+  ledGain_ = -1;
   if (!uart_.valid()) return;
   if (upgrading_) { upgrade_.fail(reason); firmwareProgress(nowMs); }
   uart_.reset();
@@ -522,6 +527,37 @@ bool McuService::writeFrame(const uint8_t* bytes, std::size_t length, uint8_t co
   return false;
 }
 
+namespace {
+// The stored gain is a plain number in the clock's data directory; absent or unreadable means
+// the built-in default, so a fresh install is dimmed without any file to create first.
+int readLedGainFile(const std::string& path) {
+  FILE* file = std::fopen(path.c_str(), "rb");
+  if (!file) return -1;
+  char text[32] = {0};
+  const std::size_t bytes = std::fread(text, 1, sizeof text - 1, file);
+  std::fclose(file);
+  if (bytes == 0) return -1;
+  char* end = nullptr;
+  const long value = std::strtol(text, &end, 10);
+  if (end == text) return -1;
+  return static_cast<int>(value);
+}
+}  // namespace
+
+void McuService::applyLedGain(int64_t nowMs) {
+  ledGainAt_ = nowMs + kLedGainIntervalMs;
+  if (!uart_.valid() || options_.ledGainPath.empty() || firmwareBusy()) return;
+  int value = readLedGainFile(options_.ledGainPath);
+  if (value < 0) value = 10;
+  if (value > 63) value = 63;
+  if (value == ledGain_) return;
+  uint8_t frame[mcu::kLedGainBytes];
+  mcu::encodeLedGain(static_cast<uint8_t>(value), frame);
+  if (!writeFrame(frame, sizeof frame, mcu::kLedGain, nowMs)) return;
+  ledGain_ = value;
+  Log::line("mcu", "LED current gain set to %d", value);
+}
+
 void McuService::publish(int64_t nowMs) {
   tc002::PowerStatus power;
   const bool usbFresh = usbSeen_ && nowMs - usbSeenAt_ < options_.staleMs;
@@ -551,6 +587,7 @@ int64_t McuService::nextDeadlineMs() const {
   else due = earliest(earliest(earliest(versionAt_, identityAt_), usbAt_), batteryAt_);
   due = earliest(due, verifyDeadline_);
   due = earliest(due, prepareDeadline_);
+  if (ledGainAt_ >= 0) due = earliest(due, ledGainAt_);
   due = earliest(due, pendingStreamAt_);
   if (usbSeen_) due = earliest(due, usbSeenAt_ + options_.staleMs);
   if (batterySeen_) due = earliest(due, batterySeenAt_ + options_.staleMs);
@@ -577,6 +614,7 @@ void McuService::onTime(int64_t nowMs) {
     return;
   }
   if (!uart_.valid() && reopenAt_ >= 0 && nowMs >= reopenAt_) openUart(nowMs);
+  if (ledGainAt_ >= 0 && nowMs >= ledGainAt_) applyLedGain(nowMs);
   pump(nowMs);
   if (usbSeen_ && nowMs - usbSeenAt_ >= options_.staleMs) {
     usbSeen_ = false;
