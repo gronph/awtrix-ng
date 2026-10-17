@@ -57,6 +57,7 @@ const SYSF={
  ldrGamma:F('hw','number','LDR gamma','Higher = dimmer at moderate light. 1.0 = off.',{min:0.1,max:10,step:0.1}),
  ldrOnGround:F('hw','toggle','LDR on GND','Set if the light sensor is wired to ground.'),
  brightnessSmoothing:F('hw','number','Brightness smoothing','Higher = calmer response to light changes.',{min:0,max:60000,unit:'ms'}),
+ ledGain:F('hw','number','LED current gain','Drive current of the panel, 0-63. The vendor default is 30; lower is dimmer. Nothing else sets it, so a panel dimmed by the stock app returns to the default after an MCU update.',{min:0,max:63}),
  batteryDividerRatio:F('hw','number','Battery divider','Only change it if the percentage is wrong.',{min:0.1,max:10,step:0.01}),
  tempOffset:F('hw','number','Temperature offset','Added to the reading. -9 cancels the case heat.',{min:-20,max:20,step:0.1,unit:'°'}),
  humOffset:F('hw','number','Humidity offset','Added to the reading.',{min:-50,max:50,step:0.1,unit:'%'}),

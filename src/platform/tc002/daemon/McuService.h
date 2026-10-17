@@ -37,6 +37,7 @@ struct McuOptions {
   std::vector<std::string> firmwareHelperArguments;
   std::string firmwareCaFile;
   std::string ledGainPath;
+  std::string deviceConfigPath;
 };
 
 class McuService : public Service {

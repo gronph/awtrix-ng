@@ -530,6 +530,24 @@ bool McuService::writeFrame(const uint8_t* bytes, std::size_t length, uint8_t co
 namespace {
 // The stored gain is a plain number in the clock's data directory; absent or unreadable means
 // the built-in default, so a fresh install is dimmed without any file to create first.
+// The web UI and /api/v1/system keep the value in the device configuration, so that file is the
+// first place to look; the plain data-directory file and the built-in default follow it.
+int readLedGainFromConfig(const std::string& path) {
+  if (path.empty()) return -1;
+  FILE* file = std::fopen(path.c_str(), "rb");
+  if (!file) return -1;
+  char text[2048] = {0};
+  const std::size_t bytes = std::fread(text, 1, sizeof text - 1, file);
+  std::fclose(file);
+  if (bytes == 0) return -1;
+  const char* key = std::strstr(text, "\"ledGain\":");
+  if (!key) return -1;
+  const char* cursor = key + 10;
+  while (*cursor == ' ') ++cursor;
+  if (*cursor < '0' || *cursor > '9') return -1;
+  return static_cast<int>(std::strtol(cursor, nullptr, 10));
+}
+
 int readLedGainFile(const std::string& path) {
   FILE* file = std::fopen(path.c_str(), "rb");
   if (!file) return -1;
@@ -547,7 +565,8 @@ int readLedGainFile(const std::string& path) {
 void McuService::applyLedGain(int64_t nowMs) {
   ledGainAt_ = nowMs + kLedGainIntervalMs;
   if (!uart_.valid() || options_.ledGainPath.empty() || firmwareBusy()) return;
-  int value = readLedGainFile(options_.ledGainPath);
+  int value = readLedGainFromConfig(options_.deviceConfigPath);
+  if (value < 0) value = readLedGainFile(options_.ledGainPath);
   if (value < 0) value = 10;
   if (value > 63) value = 63;
   if (value == ledGain_) return;

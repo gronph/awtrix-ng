@@ -263,6 +263,7 @@ McuOptions makeMcuOptions(const DaemonOptions& options) {
   mcuOptions.firmwareHelperArguments = {"--prepare-mcu"};
   mcuOptions.firmwareCaFile = options.root + "/share/ca-certificates.crt";
   mcuOptions.ledGainPath = options.data + "/led-gain";
+  mcuOptions.deviceConfigPath = options.data + "/app/device.json";
   return mcuOptions;
 }
 
