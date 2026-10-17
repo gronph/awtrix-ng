@@ -296,6 +296,14 @@ void Tc002Board::show(const Canvas& canvas) {
       }
     }
   }
+  // Identischen Frame NICHT erneut senden: der Panel-MCU des TC002 erzeugt niedrige
+  // Stufen durch zeitliches Wiederholen der Codes ("the MCU applies its own gamma and
+  // repeats codes") und braucht dafür ein stehendes Bild. Ohne diese Sperre schreibt
+  // AWTRIX 40x/s dieselben Daten und das Panel wirkt deutlich heller als die
+  // Vendor-App, die nur bei Inhaltsänderung schrieb (im Leerlauf ~1x pro Minute).
+  if (hasShown_ && std::memcmp(frame_.data(), shown_.data(), kFrameBytes) == 0) return;
+  shown_ = frame_;
+  hasShown_ = true;
   if (submit(1) && measured) --measured->showFailures;
 }
 

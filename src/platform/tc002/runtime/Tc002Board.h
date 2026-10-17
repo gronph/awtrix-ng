@@ -39,7 +39,14 @@ class Tc002Board final : public LinuxBoard {
   void setTiming(LinuxPanelTiming* timing) { timing_ = timing; }
   void begin() override;
   // Continuous output: each call sends one complete frame and exposes the
-  // previously buffered frame. The runtime also repeats unchanged content.
+  // previously buffered frame.
+  //
+  // NOTE (custom build, see below): a frame that is byte-identical to the last
+  // transferred one is NOT sent again. The TC002 panel MCU builds low levels by
+  // repeating codes over time ("the MCU applies its own gamma and repeats codes"),
+  // so it needs a *standing* image. Resending 40 identical frames per second
+  // starves that repeat and makes the panel visibly brighter than the vendor app,
+  // which wrote the panel only when the content changed (~once a minute when idle).
   void show(const Canvas& canvas) override;
   void setBrightness(uint8_t brightness) override;
   void applyColorGrade(const render::GradeParams& grade) override;
@@ -50,6 +57,9 @@ class Tc002Board final : public LinuxBoard {
 
   std::unique_ptr<Tc002PanelIo> io_;
   std::array<uint8_t, kFrameBytes> frame_{};
+  // Letzter tatsächlich übertragener Frame (für den Vergleich in show()).
+  std::array<uint8_t, kFrameBytes> shown_{};
+  bool hasShown_ = false;
   LinuxPanelTiming* timing_ = nullptr;
   render::ColorGrade grade_;
   std::string error_;
