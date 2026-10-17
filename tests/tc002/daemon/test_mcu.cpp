@@ -13,6 +13,8 @@
 
 using namespace awtrix::tc002d;
 using tc002d_test::check;
+using tc002d_test::TempDir;
+using tc002d_test::writeFile;
 
 namespace {
 
@@ -141,6 +143,9 @@ void conversation() {
   state.onPower([&] { ++changes; });
   McuOptions options;
   options.path = device.slave;
+  TempDir gainDir;
+  options.ledGainPath = gainDir / "led-gain";
+  check(writeFile(options.ledGainPath, "10\n"), "stored LED gain file");
   McuService mcu(state, options);
   int64_t now = 10000;
   check(mcu.start(now) && mcu.open(), "service opens the UART");
@@ -166,7 +171,7 @@ void conversation() {
   {
     const std::vector<uint8_t> applied = device.take();
     uint8_t expected[mcu::kLedGainBytes];
-    mcu::encodeLedGain(10, expected);  // no stored value yet, so the built-in default is written
+    mcu::encodeLedGain(10, expected);  // the value from the prepared led-gain file
     bool same = applied.size() == sizeof expected;
     for (std::size_t i = 0; same && i < applied.size(); ++i) same = applied[i] == expected[i];
     check(same, "the LED gain is written once the MCU has answered");

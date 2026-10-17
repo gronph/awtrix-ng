@@ -252,6 +252,9 @@ void McuService::handle(const mcu::Frame& frame, int64_t nowMs) {
           std::string_view(reinterpret_cast<const char*>(frame.payload), frame.length));
       if (text != version_) Log::line("mcu", "firmware %s", text.c_str());
       version_ = text;
+      // The MCU is up and answering: apply the stored gain here, before the identity probe
+      // that this reply triggers.
+      applyLedGain(nowMs);
       versionAt_ = -1;
       reply = true;
       break;
